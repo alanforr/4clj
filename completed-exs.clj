@@ -1813,3 +1813,60 @@ x y
                   ols (distinct (mapcat only-latins as))]
               (count-counts ols)))]
     (count-latin-squares rows)))
+
+;; alanforr's solution to Parentheses... Again
+;; https://4clojure.com/problem/195
+
+(fn [n]
+  (letfn [(add-brackets [open close]
+                        (lazy-seq
+                         (concat
+                          (when (pos? open)
+                            (map #(cons \( %)
+                                 (add-brackets (dec open) (inc close))))
+                          (when (pos? close)
+                            (map #(cons \) %)
+                                 (add-brackets open (dec close))))
+                          (when (= [0 0] [open close]) [""]))))
+          (parentheses [nu] (set (map #(apply str %) (add-brackets nu 0))))]
+    (parentheses n)))
+
+;; alanforr's solution to Veitch, Please!
+;; https://4clojure.com/problem/140
+
+(fn [sb]
+  (let [ones ['A 'B 'C 'D]
+        zeros ['a 'b 'c 'd]
+        pairs (map set (map vector ones zeros))
+        count-ones (fn [s] (count (clojure.set/intersection s (set ones))))
+        group-by-ones (fn [s] (group-by count-ones s))
+        number-differences (fn [s1 s2] (count (clojure.set/difference s1 s2)))
+        neighbour? (fn [s1 s2] (= 1 (number-differences s1 s2)))
+        compare-groups (fn [g1 g2]
+                         (set
+                           (for [x g1
+                                 y g2
+                                 :let [z (clojure.set/intersection x y)]
+                                 :when (neighbour? x y)]
+                             z)))
+        symm-difference (fn [s1 s2]
+                          (clojure.set/union
+                            (clojure.set/difference s1 s2)
+                            (clojure.set/difference s2 s1)))
+        dontcare (fn [s1 s2] (some #(= (symm-difference s1 s2) %) pairs))
+        remove-overlaps (fn [g1 g2] (set (remove (fn [g] (some #(= 1 (number-differences g %)) g2)) g1)))
+        remove-dontcares (fn [g] (set (remove (fn [gm] (some #(dontcare gm %) g)) g)))
+        map-over-map-keys-vals (fn [m f] (let [km (keys m)] (zipmap km (map f km (vals m)))))
+        compare-adjacent-groups (fn [m] (map-over-map-keys-vals m (fn [k v] (compare-groups v (m (inc k))))))
+        flatten-gbos (fn [gbo] (apply clojure.set/union (vals gbo)))
+        qm (fn [s]
+             (let [gbo (group-by-ones s)
+                   threes (compare-adjacent-groups gbo)
+                   twos (compare-adjacent-groups threes)
+                   fthrees (flatten-gbos threes)
+                   ftwos (flatten-gbos twos)
+                   finalthrees (remove-dontcares fthrees)
+                   finaltwos (remove-dontcares (remove-overlaps ftwos finalthrees))
+                   res (clojure.set/union finalthrees finaltwos)]
+               (if (empty? res) s res)))]
+    (qm sb)))
